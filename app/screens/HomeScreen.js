@@ -7,7 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
 import { brand, modelName } from 'expo-device';
 import { Ionicons } from '@expo/vector-icons';
-import { addZone, getZones, deleteZone, syncZonesWithServer } from '../services/geofenceStorage';
+import { addZone, getZones, deleteZone, syncZonesWithServer, deleteZoneFromCloud } from '../services/geofenceStorage';
 
 
 // Modern Color Palette
@@ -145,9 +145,16 @@ const HomeScreen = ({ navigation }) => {
                 });
 
             } catch (error) {
-                console.log("Device not found on server, clearing local storage");
-                await SecureStore.deleteItemAsync('device_id');
-                setIsRegistered(false);
+                // CRITICAL FIX: Only delete ID if server explicitly says "Not Found" (404).
+                // If network error, timeout, or 500, we KEEP the ID and assume we are registered (Offline Mode).
+                if (error.response && error.response.status === 404) {
+                    console.log("Device not found on server (404), clearing local storage");
+                    await SecureStore.deleteItemAsync('device_id');
+                    setIsRegistered(false);
+                } else {
+                    console.log("Network/Server error during check, assuming offline registered state.", error.message);
+                    setIsRegistered(true); // Assume registered to allow app usage offline
+                }
             }
         }
     };
@@ -233,6 +240,13 @@ const HomeScreen = ({ navigation }) => {
             setZoneName('');
             const updated = await getZones();
             setZones(updated);
+
+            // --- Cloud Sync (Immediate) ---
+            const deviceId = await SecureStore.getItemAsync('device_id');
+            if (deviceId) {
+                console.log("Syncing new zone to cloud...");
+                syncZonesWithServer('https://gps-backend.techone.com.mx', deviceId).catch(err => console.log("Background sync failed", err));
+            }
         } else {
             Alert.alert("Error", "No se pudo guardar la zona.");
         }
@@ -242,6 +256,13 @@ const HomeScreen = ({ navigation }) => {
         await deleteZone(id);
         const updated = await getZones();
         setZones(updated);
+
+        // --- Cloud Delete ---
+        const deviceId = await SecureStore.getItemAsync('device_id');
+        if (deviceId) {
+            console.log(`Deleting zone ${id} from cloud...`);
+            deleteZoneFromCloud('https://gps-backend.techone.com.mx', deviceId, id).catch(e => console.log("Cloud delete failed", e));
+        }
     };
 
     return (

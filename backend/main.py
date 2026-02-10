@@ -6,8 +6,8 @@ from datetime import datetime
 import pytz
 
 from database import engine, Base, get_db
-from models import Device, Location, User
-from schemas import DeviceCreate, DeviceResponse, LocationCreate, LocationResponse, UserLogin, Token
+from models import Device, Location, User, SafeZone
+from schemas import DeviceCreate, DeviceResponse, LocationCreate, LocationResponse, UserLogin, Token, SafeZoneCreate, SafeZoneResponse
 
 app = FastAPI(title="GPS Tracker API")
 
@@ -109,6 +109,73 @@ async def get_device(device_id: str, db: AsyncSession = Depends(get_db)):
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     return device
+
+# --- Safe Zones (Cloud Sync) ---
+@app.get("/zones/{device_unique_id}", response_model=List[SafeZoneResponse])
+async def get_device_zones(device_unique_id: str, db: AsyncSession = Depends(get_db)):
+    # 1. Get Device
+    result = await db.execute(select(Device).where(Device.device_id == device_unique_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    # 2. Get Zones
+    # Utilizing the relationship or a direct query
+    # Async relationships can be tricky if not eagerly loaded, so direct query is safer here
+    result_zones = await db.execute(select(SafeZone).where(SafeZone.device_id_fk == device.id))
+    zones = result_zones.scalars().all()
+    return zones
+
+@app.post("/zones/{device_unique_id}", response_model=List[SafeZoneResponse])
+async def sync_device_zones(device_unique_id: str, zones: List[SafeZoneCreate], db: AsyncSession = Depends(get_db)):
+    """
+    Recibe una lista de zonas del dispositivo.
+    Las agrega a la nube si no existen (basado en lat/lon y nombre).
+    Devuelve la LISTA COMPLETA actualizada de zonas en la nube para que el dispositivo se sincronice.
+    """
+    # 1. Get Device
+    result = await db.execute(select(Device).where(Device.device_id == device_unique_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    # 2. Get Existing Cloud Zones
+    result_existing = await db.execute(select(SafeZone).where(SafeZone.device_id_fk == device.id))
+    existing_zones = result_existing.scalars().all()
+    
+    # 3. Merge Logic (Simple: Add if not exists by proximity)
+    # We use a small epsilon for float comparison logic or just exact match if generated from same source
+    # For simplicity v1: Check exact lat/lon/name match
+    
+    zones_added = 0
+    for new_zone in zones:
+        is_duplicate = False
+        for ex_zone in existing_zones:
+            # Check if same zone (approximate match 0.0001 deg ~ 11 meters)
+            if (abs(ex_zone.latitude - new_zone.latitude) < 0.0001 and 
+                abs(ex_zone.longitude - new_zone.longitude) < 0.0001):
+                is_duplicate = True
+                break
+        
+        if not is_duplicate:
+            # Add to DB
+            db_zone = SafeZone(
+                device_id_fk=device.id,
+                name=new_zone.name,
+                latitude=new_zone.latitude,
+                longitude=new_zone.longitude,
+                radius=new_zone.radius
+            )
+            db.add(db_zone)
+            zones_added += 1
+    
+    if zones_added > 0:
+        await db.commit()
+    
+    # 4. Return ALL zones (so device can add any missing cloud zones)
+    # Need to re-fetch to include newly added ones with IDs
+    result_final = await db.execute(select(SafeZone).where(SafeZone.device_id_fk == device.id))
+    return result_final.scalars().all()
 
 @app.get("/")
 def read_root():

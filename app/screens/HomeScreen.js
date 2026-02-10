@@ -7,7 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
 import { brand, modelName } from 'expo-device';
 import { Ionicons } from '@expo/vector-icons';
-import { addZone, getZones, deleteZone } from '../services/geofenceStorage';
+import { addZone, getZones, deleteZone, syncZonesWithServer } from '../services/geofenceStorage';
 
 
 // Modern Color Palette
@@ -132,6 +132,18 @@ const HomeScreen = ({ navigation }) => {
             try {
                 await axios.get(`https://gps-backend.techone.com.mx/devices/${deviceId}`);
                 setIsRegistered(true);
+
+                // --- Cloud Sync (Silent) ---
+                console.log("Syncing zones with cloud...");
+                syncZonesWithServer('https://gps-backend.techone.com.mx', deviceId).then(updatedZones => {
+                    if (updatedZones) {
+                        setZones(updatedZones); // Update UI with synced zones
+                        console.log("Zones synced.");
+                    } else {
+                        getZones().then(z => setZones(z)); // Fallback to local
+                    }
+                });
+
             } catch (error) {
                 console.log("Device not found on server, clearing local storage");
                 await SecureStore.deleteItemAsync('device_id');

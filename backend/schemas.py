@@ -53,3 +53,21 @@ class UserResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+# --- Safe Zones ---
+class SafeZoneBase(BaseModel):
+    name: str
+    latitude: float
+    longitude: float
+    radius: float = 100.0
+
+class SafeZoneCreate(SafeZoneBase):
+    device_unique_id: str
+
+class SafeZoneResponse(SafeZoneBase):
+    id: int
+    created_at: datetime
+    device_id_fk: int
+
+    class Config:
+        from_attributes = True

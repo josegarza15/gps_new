@@ -24,6 +24,7 @@ class Device(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     locations = relationship("Location", back_populates="device")
+    safe_zones = relationship("SafeZone", back_populates="device", cascade="all, delete-orphan")
 
 class Location(Base):
     __tablename__ = "locations"
@@ -36,3 +37,16 @@ class Location(Base):
     server_received_at = Column(DateTime, default=datetime.utcnow)
     
     device = relationship("Device", back_populates="locations")
+
+class SafeZone(Base):
+    __tablename__ = "safe_zones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    device_id_fk = Column(Integer, ForeignKey("devices.id"))
+    name = Column(String, nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    radius = Column(Float, default=100.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    device = relationship("Device", back_populates="safe_zones")

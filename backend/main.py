@@ -177,6 +177,26 @@ async def sync_device_zones(device_unique_id: str, zones: List[SafeZoneCreate], 
     result_final = await db.execute(select(SafeZone).where(SafeZone.device_id_fk == device.id))
     return result_final.scalars().all()
 
+@app.delete("/zones/{device_unique_id}/{zone_id}")
+async def delete_zone(device_unique_id: str, zone_id: int, db: AsyncSession = Depends(get_db)):
+    # 1. Get Device to verify ownership
+    result = await db.execute(select(Device).where(Device.device_id == device_unique_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    # 2. Get Zone
+    result_zone = await db.execute(select(SafeZone).where(SafeZone.id == zone_id, SafeZone.device_id_fk == device.id))
+    zone = result_zone.scalar_one_or_none()
+    
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+
+    # 3. Delete
+    await db.delete(zone)
+    await db.commit()
+    return {"status": "deleted", "id": zone_id}
+
 @app.get("/")
 def read_root():
     return {"status": "ok", "service": "GPS Tracker API"}

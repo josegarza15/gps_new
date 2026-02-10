@@ -1,0 +1,34 @@
+version: '3.8'
+
+networks:
+  gps_network:
+    driver: bridge
+  traefik:
+    name: vpn-traefik-gps_proxy
+    external: true
+
+services:
+  backend:
+    build: ./backend
+    container_name: gps_backend
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app # Mount current code to /app (so imports work as expected if run from /app)
+    # Since we mounting ./backend to /app, backend.main becomes app.main? No, just main.
+    # The structure on host is ./backend/main.py. Inside container is /app/main.py.
+    # So module is `main`.
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    networks:
+      - gps_network
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gps-backend.rule=Host(`gps-backend.techone.com.mx`)"
+      - "traefik.http.routers.gps-backend.entrypoints=websecure"
+      - "traefik.http.routers.gps-backend.tls=true"
+      - "traefik.http.routers.gps-backend.tls.certresolver=myresolver"
+      - "traefik.http.routers.gps-backend.service=gps-backend"
+      - "traefik.http.services.gps-backend.loadbalancer.server.port=8000"
+      - "traefik.docker.network=vpn-traefik-gps_proxy"

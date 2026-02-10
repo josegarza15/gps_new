@@ -1,6 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional, List
 from datetime import datetime
+from typing import List, Optional
 
 # --- Devices ---
 class DeviceBase(BaseModel):
@@ -46,6 +46,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
+    is_active: bool
 
     class Config:
         from_attributes = True
@@ -71,3 +72,6 @@ class SafeZoneResponse(SafeZoneBase):
 
     class Config:
         from_attributes = True
+
+class DeviceWithLocation(DeviceResponse):
+    last_location: Optional[LocationResponse] = None

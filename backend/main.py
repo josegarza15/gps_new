@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.future import select
+from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from datetime import datetime
@@ -7,9 +8,19 @@ import pytz
 
 from database import engine, Base, get_db
 from models import Device, Location, User, SafeZone
-from schemas import DeviceCreate, DeviceResponse, LocationCreate, LocationResponse, UserLogin, Token, SafeZoneCreate, SafeZoneResponse
+from schemas import DeviceCreate, DeviceResponse, LocationCreate, LocationResponse, UserLogin, Token, SafeZoneCreate, SafeZoneResponse, DeviceWithLocation, UserResponse
 
 app = FastAPI(title="GPS Tracker API")
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allow all for now to ensure it works, or specific domains: ["https://gps.techone.com.mx", "http://localhost:5173"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Startup ---
 @app.on_event("startup")
@@ -102,13 +113,110 @@ async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
     
     return {"access_token": f"token-for-{user.username}", "token_type": "bearer"}
 
+# --- Users CRUD ---
+@app.get("/users/", response_model=List[UserResponse])
+async def get_users(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).offset(skip).limit(limit))
+    return result.scalars().all()
+
+@app.post("/users/register", response_model=UserResponse)
+async def create_user(user: UserLogin, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.username == user.username))
+    existing = result.scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    new_user = User(username=user.username, password_hash=user.password) # Hash in real app!
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+    return new_user
+
+@app.delete("/users/{user_id}")
+async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
+    """Soft delete user"""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.is_active = False
+    await db.commit()
+    return {"status": "deleted (soft)", "id": user_id}
+
+@app.put("/users/{user_id}/status")
+async def toggle_user_status(user_id: int, is_active: bool, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.is_active = is_active
+    await db.commit()
+    return {"status": "updated", "is_active": user.is_active}
+
 @app.get("/devices/{device_id}", response_model=DeviceResponse)
 async def get_device(device_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Device).where(Device.device_id == device_id))
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+@app.put("/devices/{device_id}", response_model=DeviceResponse)
+async def update_device(device_id: str, device_data: DeviceCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Device).where(Device.device_id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    device.name = device_data.name
+    device.brand = device_data.brand
+    device.model = device_data.model
+    device.mac_address = device_data.mac_address
+    
+    # We can handle soft delete here if passed as a field, or separate endpoint
+    # But for standard update, this is enough.
+    await db.commit()
+    await db.refresh(device)
     return device
+
+@app.delete("/devices/{device_id}")
+async def delete_device(device_id: str, db: AsyncSession = Depends(get_db)):
+    """Soft delete device"""
+    result = await db.execute(select(Device).where(Device.device_id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    device.is_active = False # Soft delete
+    await db.commit()
+    return {"status": "deleted (soft)", "id": device_id}
+
+@app.get("/devices/locations/", response_model=List[DeviceWithLocation])
+async def get_devices_with_locations(db: AsyncSession = Depends(get_db)):
+    # Get all active devices
+    result = await db.execute(select(Device).where(Device.is_active == True))
+    devices = result.scalars().all()
+    
+    response = []
+    for device in devices:
+        # Get last location for each device
+        loc_result = await db.execute(
+            select(Location)
+            .where(Location.device_id_fk == device.id)
+            .order_by(desc(Location.timestamp))
+            .limit(1)
+        )
+        last_loc = loc_result.scalar_one_or_none()
+        
+        dev_data = DeviceWithLocation.from_orm(device)
+        if last_loc:
+            dev_data.last_location = LocationResponse.from_orm(last_loc)
+        
+        response.append(dev_data)
+        
+    return response
 
 # --- Safe Zones (Cloud Sync) ---
 @app.get("/zones/{device_unique_id}", response_model=List[SafeZoneResponse])

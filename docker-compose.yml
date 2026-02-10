@@ -32,3 +32,19 @@ services:
       - "traefik.http.routers.gps-backend.service=gps-backend"
       - "traefik.http.services.gps-backend.loadbalancer.server.port=8000"
       - "traefik.docker.network=vpn-traefik-gps_proxy"
+
+  web:
+    build: ./web
+    container_name: gps_web
+    restart: unless-stopped
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gps-web.rule=Host(`gps.techone.com.mx`)"
+      - "traefik.http.routers.gps-web.entrypoints=websecure"
+      - "traefik.http.routers.gps-web.tls=true"
+      - "traefik.http.routers.gps-web.tls.certresolver=myresolver"
+      - "traefik.http.routers.gps-web.service=gps-web"
+      - "traefik.http.services.gps-web.loadbalancer.server.port=80"
+      - "traefik.docker.network=vpn-traefik-gps_proxy"

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { startLocationTracking, stopLocationTracking } from '../services/locationTask';
 import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
 import { brand, modelName } from 'expo-device';
-import { Ionicons } from '@expo/vector-icons'; // Make sure you have vector icons, if not, remove or use emoji
+import { Ionicons } from '@expo/vector-icons';
+import { addZone, getZones, deleteZone } from '../services/geofenceStorage';
+
 
 // Modern Color Palette
 const COLORS = {
@@ -26,6 +28,11 @@ const HomeScreen = ({ navigation }) => {
     const [isRegistered, setIsRegistered] = useState(false);
     const [deviceNameInput, setDeviceNameInput] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Geofencing State
+    const [modalVisible, setModalVisible] = useState(false);
+    const [zoneName, setZoneName] = useState('');
+    const [zones, setZones] = useState([]);
 
     useEffect(() => {
         checkRegistration();
@@ -168,6 +175,13 @@ const HomeScreen = ({ navigation }) => {
     const checkTrackingStatus = async () => {
         const isRegistered = await TaskManager.isTaskRegisteredAsync('background-location-task');
         setIsTracking(isRegistered);
+        if (isRegistered) {
+            // CRITICAL FIX: Always re-apply tracking options on app start.
+            // This ensures that if the app was previously "stuck" in a 10-minute interval (Low Mode),
+            // it gets reset to the correct 30s interval immediately.
+            console.log("Refreshing tracking configuration...");
+            await startLocationTracking();
+        }
     };
 
     const toggleTracking = async () => {
@@ -178,6 +192,44 @@ const HomeScreen = ({ navigation }) => {
             await startLocationTracking();
             setIsTracking(true);
         }
+    };
+
+    const openZoneModal = async () => {
+        const loadedZones = await getZones();
+        setZones(loadedZones);
+        setModalVisible(true);
+    };
+
+    const handleAddZone = async () => {
+        if (!location) {
+            Alert.alert("Error", "No hay ubicación actual para guardar.");
+            return;
+        }
+        if (!zoneName.trim()) {
+            Alert.alert("Nombre requerido", "Ingresa un nombre para la zona (ej. Casa).");
+            return;
+        }
+
+        const success = await addZone({
+            name: zoneName,
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude
+        });
+
+        if (success) {
+            Alert.alert("Guardado", "Zona segura agregada.");
+            setZoneName('');
+            const updated = await getZones();
+            setZones(updated);
+        } else {
+            Alert.alert("Error", "No se pudo guardar la zona.");
+        }
+    };
+
+    const handleDeleteZone = async (id) => {
+        await deleteZone(id);
+        const updated = await getZones();
+        setZones(updated);
     };
 
     return (
@@ -256,8 +308,67 @@ const HomeScreen = ({ navigation }) => {
                             <Text style={[styles.actionButtonText, { color: COLORS.primary }]}>ACTUALIZAR SERVIDOR</Text>
                             <Text style={[styles.actionSubtext, { color: COLORS.subtext }]}>Manual</Text>
                         </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.actionButton, { backgroundColor: '#607D8B', marginTop: 10 }]}
+                            onPress={openZoneModal}
+                        >
+                            <Text style={styles.actionButtonText}>ZONAS SEGURAS</Text>
+                            <Text style={styles.actionSubtext}>Ahorro de Batería</Text>
+                        </TouchableOpacity>
                     </View>
                 )}
+
+                {/* Secure Zone Modal */}
+                <Modal
+                    animationType="slide"
+                    transparent={true}
+                    visible={modalVisible}
+                    onRequestClose={() => setModalVisible(false)}
+                >
+                    <View style={styles.modalView}>
+                        <View style={styles.modalContent}>
+                            <Text style={styles.modalTitle}>Zonas Seguras</Text>
+                            <Text style={styles.modalSub}>Si estás en una zona segura, el GPS se actualizará cada 10 mins para ahorrar batería.</Text>
+
+                            <View style={styles.addZoneContainer}>
+                                <Text style={styles.label}>Agregar Ubicación Actual:</Text>
+                                <TextInput
+                                    style={[styles.input, { marginBottom: 10 }]}
+                                    placeholder="Nombre (ej. Casa)"
+                                    value={zoneName}
+                                    onChangeText={setZoneName}
+                                />
+                                <TouchableOpacity style={[styles.primaryButton, { padding: 10 }]} onPress={handleAddZone}>
+                                    <Text style={styles.buttonText}>Guardar Zona</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={[styles.label, { marginTop: 20 }]}>Zonas Guardadas:</Text>
+                            <FlatList
+                                data={zones}
+                                keyExtractor={item => item.id}
+                                style={{ maxHeight: 200, width: '100%' }}
+                                renderItem={({ item }) => (
+                                    <View style={styles.zoneItem}>
+                                        <Text style={styles.zoneName}>{item.name}</Text>
+                                        <TouchableOpacity onPress={() => handleDeleteZone(item.id)}>
+                                            <Ionicons name="trash" size={20} color={COLORS.danger} />
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                                ListEmptyComponent={<Text style={styles.emptyText}>No hay zonas guardadas.</Text>}
+                            />
+
+                            <TouchableOpacity
+                                style={[styles.updateButton, { marginTop: 20, width: '100%', alignItems: 'center', padding: 15, borderRadius: 10 }]}
+                                onPress={() => setModalVisible(false)}
+                            >
+                                <Text style={{ color: COLORS.primary, fontWeight: 'bold' }}>CERRAR</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
 
                 <TouchableOpacity
                     style={styles.logoutButton}
@@ -422,13 +533,124 @@ const styles = StyleSheet.create({
         color: COLORS.subtext,
         fontSize: 14,
         textDecorationLine: 'underline'
-    }
-});
-
-// Since I reused actionButtonText which has color #FFF, 
-// I need to override it for the update button which has white background.
-// Let's create a specific style for update button text
-const stylesExtra = StyleSheet.create({
+    },
+    // --- Modal Styles Fixed ---
+    modalView: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: 20
+    },
+    modalContent: {
+        width: '100%',
+        backgroundColor: 'white',
+        borderRadius: 20,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 10,
+        maxHeight: '80%'
+    },
+    modalHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: COLORS.text,
+        marginBottom: 5
+    },
+    modalSub: {
+        fontSize: 14,
+        color: COLORS.subtext,
+        marginBottom: 20,
+        lineHeight: 20
+    },
+    addZoneContainer: {
+        backgroundColor: '#F8F9FA',
+        padding: 15,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E1E8ED',
+        width: '100%'
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.text,
+        marginBottom: 5
+    },
+    currentLocText: {
+        fontSize: 12,
+        color: COLORS.primary,
+        marginBottom: 10,
+        fontWeight: 'bold'
+    },
+    modalInput: {
+        backgroundColor: '#FFF',
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        borderRadius: 8,
+        padding: 12,
+        fontSize: 16,
+        color: COLORS.text,
+        marginBottom: 10
+    },
+    saveZoneButton: {
+        backgroundColor: '#455A64',
+        padding: 12,
+        borderRadius: 8,
+        alignItems: 'center'
+    },
+    saveZoneText: {
+        color: '#FFF',
+        fontWeight: 'bold',
+        fontSize: 14
+    },
+    zoneList: {
+        marginTop: 5,
+        width: '100%'
+    },
+    zoneItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0'
+    },
+    zoneName: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: COLORS.text
+    },
+    zoneCoords: {
+        fontSize: 12,
+        color: '#999',
+        marginTop: 2
+    },
+    deleteButton: {
+        padding: 5
+    },
+    emptyContainer: {
+        padding: 20,
+        alignItems: 'center'
+    },
+    emptyText: {
+        color: COLORS.subtext,
+        fontSize: 14
+    },
+    emptySubText: {
+        color: '#B0BEC5',
+        fontSize: 12,
+        marginTop: 5
+    },
     updateText: {
         color: COLORS.primary
     },

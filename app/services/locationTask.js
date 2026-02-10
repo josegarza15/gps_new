@@ -18,8 +18,8 @@ export const startLocationTracking = async () => {
         if (backgroundStatus === 'granted') {
             await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
                 accuracy: Location.Accuracy.Balanced,
-                timeInterval: 30000,
-                distanceInterval: 0, // Force update every 30s regardless of distance
+                timeInterval: 60000, // 60 seconds (Battery Optimization)
+                distanceInterval: 0, // Force update every 60s regardless of distance
                 deferredUpdatesInterval: 0, // Immediate updates
                 deferredUpdatesDistance: 0,
                 pausesUpdatesAutomatically: false, // CRITICAL: Prevent OS from killing task when stationary
@@ -98,9 +98,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
                 }
 
                 // --- Software Throttling Strategy (Robust for Android 12+) ---
-                // We DO NOT change the native tracking interval (it stays at 30s/Balanced).
+                // We DO NOT change the native tracking interval (it stays at 60s/Balanced).
                 // This prevents "ForegroundServiceStartNotAllowedException" and ensures we detect
-                // exiting the zone immediately (within 30s) instead of waiting 10 mins.
+                // exiting the zone immediately (within 60s) instead of waiting 10 mins.
 
                 if (inSafeZone) {
                     const lastSent = await SecureStore.getItemAsync('last_sent_timestamp');
@@ -117,7 +117,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
                     await SecureStore.setItemAsync('last_sent_timestamp', now.toString());
                     console.log("In Safe Zone - Heartbeat / Sending update");
                 } else {
-                    // If OUT of safe zone, we always send immediately (30s interval).
+                    // If OUT of safe zone, we always send immediately (60s interval).
                     // We remove the timestamp so that if we enter a zone again, we start fresh.
                     await SecureStore.deleteItemAsync('last_sent_timestamp');
                 }

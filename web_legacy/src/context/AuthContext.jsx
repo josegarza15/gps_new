@@ -1,21 +1,16 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import api from '../services/api';
+import axios from 'axios';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(localStorage.getItem('token'));
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        // Here we could validate the token or fetch user profile
-        setLoading(false);
-    }, []);
 
     const login = async (username, password) => {
         try {
-            const response = await api.post('/login', { username, password });
+            // Use full URL or proxy
+            const response = await axios.post('https://gps-backend.techone.com.mx/login', { username, password });
             const { access_token } = response.data;
 
             localStorage.setItem('token', access_token);
@@ -33,7 +28,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ token, login, logout, loading }}>
+        <AuthContext.Provider value={{ token, login, logout }}>
             {children}
         </AuthContext.Provider>
     );

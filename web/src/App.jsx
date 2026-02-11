@@ -1,38 +1,39 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
+import MainLayout from './layouts/MainLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+
 import Users from './pages/Users';
 import Devices from './pages/Devices';
 import Zones from './pages/Zones';
-import Layout from './components/Layout';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import History from './pages/History';
 
-const PrivateRoute = ({ children }) => {
-    const { token } = useAuth();
-    return token ? children : <Navigate to="/login" />;
+const ProtectedRoute = ({ children }) => {
+  const { token, loading } = useAuth();
+  if (loading) return null; // Or a spinner
+  if (!token) return <Navigate to="/login" replace />;
+  return children;
 };
 
-function App() {
-    return (
-        <Router>
-            <AuthProvider>
-                <Routes>
-                    <Route path="/login" element={<Login />} />
+const App = () => {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
 
-                    <Route path="/" element={
-                        <PrivateRoute>
-                            <Layout />
-                        </PrivateRoute>
-                    }>
-                        <Route index element={<Dashboard />} />
-                        <Route path="users" element={<Users />} />
-                        <Route path="devices" element={<Devices />} />
-                        <Route path="zones" element={<Zones />} />
-                    </Route>
-                </Routes>
-            </AuthProvider>
-        </Router>
-    );
-}
+      <Route path="/" element={
+        <ProtectedRoute>
+          <MainLayout />
+        </ProtectedRoute>
+      }>
+        <Route index element={<Dashboard />} />
+        <Route path="users" element={<Users />} />
+        <Route path="devices" element={<Devices />} />
+        <Route path="zones" element={<Zones />} />
+        <Route path="history" element={<History />} />
+      </Route>
+    </Routes>
+  );
+};
 
 export default App;

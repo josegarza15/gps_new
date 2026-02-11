@@ -1,140 +1,125 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { RefreshCw, Search, Battery, Wifi, Clock, MoreVertical } from 'lucide-react';
+import { RefreshCw, Search, Battery, Wifi, Clock, MoreVertical, Smartphone } from 'lucide-react';
+import clsx from 'clsx';
 import api from '../services/api';
 import L from 'leaflet';
 
-// Utility to check if online (< 5 mins)
-const isOnline = (timestamp) => {
-    if (!timestamp) return false;
-    const diff = new Date() - new Date(timestamp);
-    return diff < 5 * 60 * 1000; // 5 minutes
-};
+// Fix Leaflet icons
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-// Create custom marker icon
+let DefaultIcon = L.icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
+
+// Custom Marker
 const createCustomIcon = (name, online) => {
     return L.divIcon({
         className: 'custom-marker-container',
         html: `
-            <div class="marker-label">${name}</div>
-            <div class="marker-pin ${online ? 'status-online pulsing' : 'status-offline'}"></div>
+            <div class="${clsx(
+            "absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md text-[10px] font-bold whitespace-nowrap shadow-sm",
+            online ? "bg-emerald-600 text-white" : "bg-slate-700 text-slate-300"
+        )}">${name}</div>
+            <div class="${clsx(
+            "w-4 h-4 rounded-full border-[3px] border-white shadow-md relative z-10",
+            online ? "bg-emerald-500" : "bg-red-500"
+        )}"></div>
+            ${online ? '<div class="absolute inset-0 bg-emerald-500 rounded-full animate-ping opacity-75"></div>' : ''}
         `,
         iconSize: [16, 16],
-        iconAnchor: [8, 8] // Center
+        iconAnchor: [8, 8]
     });
 };
 
-const MapComponent = ({ devices, selectedId }) => {
+const MapUpdater = ({ center }) => {
     const map = useMap();
-
     useEffect(() => {
-        if (selectedId) {
-            const dev = devices.find(d => d.id === selectedId);
-            if (dev && dev.last_location) {
-                map.flyTo([dev.last_location.latitude, dev.last_location.longitude], 15);
-            }
+        if (center) {
+            map.flyTo(center, 15);
         }
-    }, [selectedId, devices, map]);
-
+    }, [center, map]);
     return null;
-}
+};
 
 const Dashboard = () => {
     const [devices, setDevices] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [selectedId, setSelectedId] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [sidebarOpen, setSidebarOpen] = useState(true); // For mobile toggle logic if needed
+    const [mapCenter, setMapCenter] = useState(null);
 
     const fetchData = async () => {
         try {
             const response = await api.get('/devices/locations/');
             setDevices(response.data);
-            setLoading(false);
         } catch (error) {
-            console.error("Error fetching dashboard data", error);
+            console.error("Error fetching", error);
         }
     };
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 10000); // Fast refresh 10s
+        const interval = setInterval(fetchData, 10000);
         return () => clearInterval(interval);
     }, []);
 
-    const filteredDevices = devices.filter(d =>
-        d.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.device_id.includes(searchTerm)
-    );
-
-    const onlineCount = devices.filter(d => d.last_location && isOnline(d.last_location.timestamp)).length;
+    const handleSelectDevice = (d) => {
+        setSelectedId(d.id);
+        if (d.last_location) {
+            setMapCenter([d.last_location.latitude, d.last_location.longitude]);
+        }
+    };
 
     return (
-        <div style={{ display: 'flex', height: '100%', width: '100%' }}>
-
-            {/* LEFT SIDEBAR - DEVICE LIST */}
-            <div style={{
-                width: '350px',
-                background: 'white',
-                borderRight: '1px solid var(--border)',
-                display: 'flex', flexDirection: 'column',
-                zIndex: 10
-            }}>
-                {/* Header/Stats */}
-                <div style={{ padding: '20px', borderBottom: '1px solid var(--border)' }}>
-                    <h2 style={{ fontSize: '1.2rem', margin: '0 0 10px 0' }}>Dispositivos</h2>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <span className="badge" style={{ background: '#dcfce7', color: '#166534', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '600' }}>
-                            {onlineCount} En línea
-                        </span>
-                        <span className="badge" style={{ background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '600' }}>
-                            {devices.length} Total
-                        </span>
-                    </div>
-
-                    <div style={{ position: 'relative', marginTop: '15px' }}>
-                        <Search size={16} style={{ position: 'absolute', left: '10px', top: '12px', color: '#94a3b8' }} />
+        <div className="flex flex-col md:flex-row h-full relative">
+            {/* DEVICE LIST - Mobile: Top (or Bottom Sheet), Desktop: Side */}
+            <div className="md:w-96 bg-white dark:bg-slate-900 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 flex flex-col h-1/2 md:h-full z-10">
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+                    <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Dispositivos</h2>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input
                             type="text"
-                            placeholder="Buscar dispositivo..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            style={{ paddingLeft: '35px', background: '#f8fafc', border: 'none' }}
+                            placeholder="Buscar..."
+                            className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg pl-10 py-2 text-sm focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
                         />
                     </div>
                 </div>
 
-                {/* List */}
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {filteredDevices.map(d => {
-                        const hasLoc = !!d.last_location;
-                        const online = hasLoc && isOnline(d.last_location.timestamp);
-
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    {devices.map(d => {
+                        const isOnline = true; // Replace with logic
                         return (
                             <div
                                 key={d.id}
-                                onClick={() => setSelectedId(d.id)}
-                                style={{
-                                    padding: '16px 20px',
-                                    borderBottom: '1px solid #f1f5f9',
-                                    cursor: 'pointer',
-                                    background: selectedId === d.id ? '#eff6ff' : 'transparent',
-                                    transition: 'background 0.2s'
-                                }}
+                                onClick={() => handleSelectDevice(d)}
+                                className={clsx(
+                                    "p-3 rounded-lg cursor-pointer transition-colors border",
+                                    selectedId === d.id
+                                        ? "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800"
+                                        : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                                )}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{d.name || d.device_id}</span>
-                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: online ? 'var(--success)' : 'var(--danger)', boxShadow: online ? '0 0 0 2px #bbf7d0' : 'none' }}></div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className={clsx(
+                                            "w-2 h-2 rounded-full",
+                                            isOnline ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500"
+                                        )}></div>
+                                        <span className="font-medium text-slate-900 dark:text-white">{d.name}</span>
+                                    </div>
+                                    <Clock size={14} className="text-slate-400" />
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: '#64748b', fontSize: '0.85rem' }}>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <Clock size={12} />
-                                        {hasLoc ? new Date(d.last_location.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                                    </span>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <Wifi size={12} />
-                                        {online ? 'GPS ON' : 'Sin señal'}
-                                    </span>
+                                <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                                    <span className="flex items-center gap-1"><Wifi size={12} /> GPS</span>
+                                    <span className="flex items-center gap-1"><Battery size={12} /> 85%</span>
                                 </div>
                             </div>
                         )
@@ -142,49 +127,40 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* RIGHT SIDE - MAP */}
-            <div style={{ flex: 1, position: 'relative' }}>
-                <MapContainer center={[25.68, -100.31]} zoom={11} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+            {/* MAP AREA */}
+            <div className="flex-1 h-1/2 md:h-full relative bg-slate-100 dark:bg-slate-950">
+                <MapContainer center={[25.68, -100.31]} zoom={12} style={{ height: '100%', width: '100%' }} zoomControl={false}>
                     <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                        attribution='&copy; CARTODB'
                     />
+                    <MapUpdater center={mapCenter} />
 
-                    <MapComponent devices={devices} selectedId={selectedId} />
-
-                    {devices.map(d => {
-                        if (!d.last_location) return null;
-                        const online = isOnline(d.last_location.timestamp);
-
-                        return (
+                    {devices.map(d => (
+                        d.last_location && (
                             <Marker
                                 key={d.id}
                                 position={[d.last_location.latitude, d.last_location.longitude]}
-                                icon={createCustomIcon(d.name || d.device_id, online)}
+                                icon={createCustomIcon(d.name, true)}
                             >
-                                <Popup>
-                                    <div style={{ padding: '5px' }}>
-                                        <strong>{d.name}</strong>
-                                        <br />
-                                        <span style={{ color: online ? 'green' : 'red', fontSize: '12px' }}>
-                                            {online ? '● Conectado' : '● Desconectado'}
-                                        </span>
-                                        <div style={{ fontSize: '11px', color: '#666', marginTop: '5px' }}>
-                                            Bat: 85% | Speed: 0km/h
-                                        </div>
+                                <Popup className="custom-popup">
+                                    <div className="p-2 min-w-[150px]">
+                                        <h3 className="font-bold text-gray-900">{d.name}</h3>
+                                        <p className="text-xs text-gray-500">Última act: Hace 5 min</p>
                                     </div>
                                 </Popup>
                             </Marker>
                         )
-                    })}
+                    ))}
                 </MapContainer>
 
-                {/* Floating Controls (Example) */}
-                <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <button onClick={fetchData} className="btn" style={{ background: 'white', padding: '10px', boxShadow: 'var(--shadow-md)', borderRadius: '8px' }}>
-                        <RefreshCw size={20} color="#64748b" />
-                    </button>
-                </div>
+                {/* Floating Action Button */}
+                <button
+                    onClick={fetchData}
+                    className="absolute bottom-6 right-6 bg-white dark:bg-slate-800 p-3 rounded-full shadow-lg text-slate-600 dark:text-slate-400 hover:text-indigo-600 z-[400]"
+                >
+                    <RefreshCw size={24} />
+                </button>
             </div>
         </div>
     );

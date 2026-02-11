@@ -97,6 +97,45 @@ async def create_location(location: LocationCreate, db: AsyncSession = Depends(g
     await db.refresh(new_location)
     return new_location
 
+@app.get("/locations/{device_id}/history", response_model=List[LocationResponse])
+async def get_location_history(
+    device_id: str, 
+    start_date: datetime, 
+    end_date: datetime, 
+    db: AsyncSession = Depends(get_db)
+):
+    # 1. Get Device
+    result = await db.execute(select(Device).where(Device.device_id == device_id))
+    device = result.scalar_one_or_none()
+    
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    # 2. Query Locations
+    # We assume start_date and end_date are passed in UTC or naive. 
+    # Since we store naive timestamp in Monterrey time in DB, we should be careful.
+    # The frontend should pass the dates matching the DB stored time (Monterrey).
+    # Ideally, we would stick to UTC everywhere, but per current create_location logic:
+    # timestamps are stored as Monterrey Naive.
+    
+    # So if frontend sends "2023-10-27T00:00:00", we assume it wants that time in the DB.
+    # We strip info if needed to match naive DB column.
+    if start_date.tzinfo:
+        start_date = start_date.replace(tzinfo=None)
+    if end_date.tzinfo:
+        end_date = end_date.replace(tzinfo=None)
+        
+    result_locs = await db.execute(
+        select(Location)
+        .where(
+            Location.device_id_fk == device.id,
+            Location.timestamp >= start_date,
+            Location.timestamp <= end_date
+        )
+        .order_by(Location.timestamp)
+    )
+    return result_locs.scalars().all()
+
 # --- Auth (Simplified) ---
 @app.post("/login", response_model=Token)
 @app.post("/login", response_model=Token)

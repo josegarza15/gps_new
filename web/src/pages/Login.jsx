@@ -1,69 +1,89 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { User, Lock, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Lock, User } from 'lucide-react';
 
 const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
+        setError('');
+
         const success = await login(username, password);
+
         if (success) {
             navigate('/');
         } else {
             setError('Credenciales inválidas');
+            setIsLoading(false);
         }
     };
 
     return (
-        <div style={{
-            height: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'linear-gradient(135deg, #4A90E2 0%, #50E3C2 100%)'
-        }}>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-4">
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="card"
-                style={{ width: '400px', padding: '40px' }}
+                transition={{ duration: 0.5 }}
+                className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl"
             >
-                <h2 style={{ textAlign: 'center', marginBottom: '30px', color: '#4A90E2' }}>GPS Admin</h2>
+                <div className="flex justify-center mb-8">
+                    <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/30">
+                        <User size={32} className="text-white" />
+                    </div>
+                </div>
 
-                {error && <div style={{ color: 'red', marginBottom: '15px', textAlign: 'center' }}>{error}</div>}
+                <h2 className="text-3xl font-bold text-center text-white mb-2">Bienvenido</h2>
+                <p className="text-center text-slate-300 mb-8">Ingresa tus credenciales para continuar</p>
 
-                <form onSubmit={handleSubmit}>
-                    <div style={{ position: 'relative', marginBottom: '20px' }}>
-                        <User size={20} style={{ position: 'absolute', left: '12px', top: '12px', color: '#999' }} />
+                {error && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded-xl mb-6 text-sm text-center"
+                    >
+                        {error}
+                    </motion.div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="relative">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                         <input
                             type="text"
                             placeholder="Usuario"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            style={{ paddingLeft: '40px' }}
+                            className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-12 py-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                         />
                     </div>
 
-                    <div style={{ position: 'relative', marginBottom: '30px' }}>
-                        <Lock size={20} style={{ position: 'absolute', left: '12px', top: '12px', color: '#999' }} />
+                    <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                         <input
                             type="password"
                             placeholder="Contraseña"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            style={{ paddingLeft: '40px' }}
+                            className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-12 py-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                         />
                     </div>
 
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '15px', fontSize: '16px' }}>
-                        INICIAR SESIÓN
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-4 rounded-xl shadow-lg shadow-indigo-600/30 transition-all transform active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2"
+                    >
+                        {isLoading && <Loader2 className="animate-spin" size={20} />}
+                        {isLoading ? 'Iniciando...' : 'Iniciar Sesión'}
                     </button>
                 </form>
             </motion.div>

@@ -4,16 +4,19 @@ import { EditControl } from 'react-leaflet-draw';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import api from '../services/api';
-import { Shield, Save, Trash2, Info } from 'lucide-react';
+import { Shield, Save, Trash2 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 const Zones = () => {
     const [devices, setDevices] = useState([]);
     const [selectedDevice, setSelectedDevice] = useState('');
     const [zones, setZones] = useState([]);
+    const [newZones, setNewZones] = useState([]); // Draft zones drawn
     const featureGroupRef = useRef();
+    const { theme } = useTheme();
 
     useEffect(() => {
+        // Load devices for dropdown
         const fetchDevices = async () => {
             const res = await api.get('/devices/');
             setDevices(res.data);
@@ -25,6 +28,7 @@ const Zones = () => {
     useEffect(() => {
         if (!selectedDevice) return;
         fetchZones();
+        setNewZones([]); // Clear drafts
     }, [selectedDevice]);
 
     const fetchZones = async () => {
@@ -56,9 +60,11 @@ const Zones = () => {
                 device_unique_id: selectedDevice
             };
 
+            // Save directly to backend
             api.post(`/zones/${selectedDevice}`, [payload])
                 .then(() => {
                     fetchZones();
+                    // Remove draft layer as it will be re-rendered from source
                     featureGroupRef.current.removeLayer(layer);
                 })
                 .catch(err => {
@@ -80,23 +86,17 @@ const Zones = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 bg-slate-50 dark:bg-slate-900 overflow-hidden">
-            {/* HEADER */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Shield className="text-indigo-600" />
-                        Gestión de Zonas
-                    </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Crea geocercas para tus dispositivos</p>
-                </div>
-
-                <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400 pl-2">Dispositivo:</span>
+        <div className="container" style={{ height: 'calc(100vh - 40px)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h2 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Shield /> Gestión de Zonas
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <label>Dispositivo:</label>
                     <select
                         value={selectedDevice}
                         onChange={e => setSelectedDevice(e.target.value)}
-                        className="bg-slate-50 dark:bg-slate-700 border-none rounded-lg text-sm p-2 focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white outline-none min-w-[200px]"
+                        style={{ width: '250px', margin: 0 }}
                     >
                         {devices.map(d => (
                             <option key={d.id} value={d.device_id}>{d.name || d.device_id}</option>
@@ -105,12 +105,10 @@ const Zones = () => {
                 </div>
             </div>
 
-            {/* MAIN CONTENT */}
-            <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden relative">
-                <MapContainer center={[25.68, -100.31]} zoom={12} style={{ height: '100%', width: '100%' }}>
+            <div className="card" style={{ flex: 1, padding: 0, overflow: 'hidden', position: 'relative' }}>
+                <MapContainer center={[25.68, -100.31]} zoom={11} style={{ height: '100%', width: '100%' }}>
                     <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                        attribution='&copy; CARTODB'
                     />
 
                     <FeatureGroup ref={featureGroupRef}>
@@ -126,49 +124,45 @@ const Zones = () => {
                                 circle: {
                                     metric: true,
                                     feet: false,
-                                    shapeOptions: {
-                                        color: '#4f46e5',
-                                        fillColor: '#6366f1',
-                                        fillOpacity: 0.2
-                                    }
                                 }
                             }}
-                            edit={{ edit: false, remove: false }}
+                            edit={{
+                                edit: false, // Edit existing enabled? maybe later
+                                remove: false
+                            }}
                         />
                     </FeatureGroup>
 
+                    {/* Render Existing Zones */}
                     {zones.map(z => (
                         <Circle
                             key={z.id}
                             center={[z.latitude, z.longitude]}
                             radius={z.radius}
-                            pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.2 }}
+                            pathOptions={{ color: 'green', fillColor: 'green' }}
                         >
-                            <Popup className="custom-popup">
-                                <div className="p-2">
-                                    <strong className="block text-slate-900 mb-1">{z.name}</strong>
-                                    <span className="text-xs text-slate-500 block mb-2">Radio: {Math.round(z.radius)}m</span>
-                                    <button
-                                        onClick={() => handleDelete(z.id)}
-                                        className="flex items-center gap-1 text-red-600 hover:text-red-700 text-xs font-bold"
-                                    >
-                                        <Trash2 size={12} /> Eliminar
-                                    </button>
-                                </div>
+                            <Popup>
+                                <strong>{z.name}</strong><br />
+                                Radio: {Math.round(z.radius)}m<br />
+                                <button
+                                    onClick={() => handleDelete(z.id)}
+                                    style={{ color: 'red', background: 'none', border: 'none', cursor: 'pointer', marginTop: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                >
+                                    <Trash2 size={14} /> Eliminar
+                                </button>
                             </Popup>
                         </Circle>
                     ))}
+
                 </MapContainer>
 
-                <div className="absolute bottom-6 left-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur p-4 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 max-w-xs">
-                    <h4 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white mb-2 text-sm">
-                        <Info size={16} className="text-indigo-500" /> Instrucciones
-                    </h4>
-                    <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1 list-disc pl-4">
-                        <li>Selecciona el dispositivo arriba.</li>
-                        <li>Usa el icono ⭕ en el mapa.</li>
-                        <li>Arrastra para definir el radio.</li>
-                        <li>Suelta para guardar.</li>
+                <div style={{ position: 'absolute', bottom: '20px', left: '20px', zIndex: 1000, background: 'var(--card-bg)', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.5)', border: '1px solid var(--border)' }}>
+                    <h4 style={{ color: 'var(--text-main)', margin: '0 0 10px 0' }}>Instrucciones:</h4>
+                    <ul style={{ paddingLeft: '20px', fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
+                        <li>Selecciona un dispositivo arriba.</li>
+                        <li>Usa el icono ⭕ (círculo) en el mapa para dibujar.</li>
+                        <li>Define el radio arrastrando el mouse.</li>
+                        <li>Suelta para guardar y nombrar la zona.</li>
                     </ul>
                 </div>
             </div>

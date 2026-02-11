@@ -1,9 +1,12 @@
+
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Map, Users, Smartphone, Shield, LogOut, Menu } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { Map, Users, Smartphone, Shield, LogOut, Sun, Moon } from 'lucide-react';
 
 const Layout = () => {
     const { logout } = useAuth();
+    const { theme, toggleTheme } = useTheme();
     const location = useLocation();
 
     const navItems = [
@@ -17,7 +20,7 @@ const Layout = () => {
         <div style={{ minHeight: '100vh', background: 'var(--background)' }}>
             {/* Top Navbar */}
             <header style={{
-                background: 'rgba(255, 255, 255, 0.95)',
+                background: 'var(--header-bg)',
                 backdropFilter: 'blur(10px)',
                 borderBottom: '1px solid var(--border)',
                 position: 'sticky',
@@ -27,7 +30,8 @@ const Layout = () => {
                 display: 'flex',
                 alignItems: 'center',
                 padding: '0 2rem',
-                boxShadow: 'var(--shadow-sm)'
+                boxShadow: 'var(--shadow-sm)',
+                transition: 'background 0.3s, border 0.3s'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', marginRight: '4rem' }}>
                     <div style={{
@@ -52,7 +56,7 @@ const Layout = () => {
                                     padding: '10px 16px', borderRadius: '12px',
                                     textDecoration: 'none', fontWeight: '600',
                                     color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
-                                    background: isActive ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
+                                    background: isActive ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
                                     transition: 'all 0.2s'
                                 }}
                             >
@@ -64,9 +68,22 @@ const Layout = () => {
                 </nav>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <button
+                        onClick={toggleTheme}
+                        className="btn"
+                        style={{
+                            background: 'transparent',
+                            color: 'var(--text-main)',
+                            padding: '8px'
+                        }}
+                        title={theme === 'light' ? "Modo Oscuro" : "Modo Claro"}
+                    >
+                        {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+                    </button>
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#64748b' }}>A</div>
-                        <span style={{ fontWeight: '500', fontSize: '0.9rem' }}>Admin</span>
+                        <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>A</div>
+                        <span style={{ fontWeight: '500', fontSize: '0.9rem', color: 'var(--text-main)' }}>Admin</span>
                     </div>
                     <button
                         onClick={logout}

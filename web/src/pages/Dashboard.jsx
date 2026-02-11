@@ -52,8 +52,8 @@ const MapUpdater = ({ center }) => {
 const Dashboard = () => {
     const [devices, setDevices] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
-    const [sidebarOpen, setSidebarOpen] = useState(true); // For mobile toggle logic if needed
     const [mapCenter, setMapCenter] = useState(null);
+    const [isListOpen, setIsListOpen] = useState(true); // Control mobile list state
 
     const fetchData = async () => {
         try {
@@ -74,52 +74,91 @@ const Dashboard = () => {
         setSelectedId(d.id);
         if (d.last_location) {
             setMapCenter([d.last_location.latitude, d.last_location.longitude]);
+            // Optional: Auto-collapse on mobile when selecting?
+            // setIsListOpen(false); 
         }
     };
 
     return (
-        <div className="flex flex-col md:flex-row h-full relative">
-            {/* DEVICE LIST - Mobile: Top (or Bottom Sheet), Desktop: Side */}
-            <div className="md:w-96 bg-white dark:bg-slate-900 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 flex flex-col h-1/2 md:h-full z-10">
-                <div className="p-4 border-b border-slate-100 dark:border-slate-800">
-                    <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Dispositivos</h2>
-                    <div className="relative">
+        <div className="flex flex-col md:flex-row h-full relative overflow-hidden">
+            {/* DEVICE LIST */}
+            <div
+                className={clsx(
+                    "bg-white dark:bg-slate-900 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 transition-all duration-300 ease-in-out",
+                    "md:w-96 md:h-full md:relative", // Desktop: Fixed width, full height
+                    isListOpen ? "h-1/2" : "h-14" // Mobile: 50% height vs Header only height
+                )}
+            >
+                {/* HEADER (Always Visible) */}
+                <div
+                    className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 h-14 cursor-pointer md:cursor-default"
+                    onClick={() => window.innerWidth < 768 && setIsListOpen(!isListOpen)}
+                >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white whitespace-nowrap">Dispositivos</h2>
+                        <span className="bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs px-2 py-0.5 rounded-full font-bold">
+                            {devices.length}
+                        </span>
+                    </div>
+
+                    {/* SEARCH - Only visible when open on mobile, always on desktop */}
+                    <div className={clsx("relative flex-1 mx-4 transition-opacity duration-200", !isListOpen && "md:block opacity-0 md:opacity-100 pointer-events-none md:pointer-events-auto")}>
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input
                             type="text"
                             placeholder="Buscar..."
-                            className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg pl-10 py-2 text-sm focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                            onClick={(e) => e.stopPropagation()} // Prevent collapse when clicking search
+                            className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg pl-10 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
                         />
+                    </div>
+
+                    {/* TOGGLE BUTTON (Mobile Only) */}
+                    <div className="md:hidden text-slate-400">
+                        {isListOpen ? <MoreVertical size={20} className="rotate-90" /> : <MoreVertical size={20} />}
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                {/* LIST CONTENT */}
+                <div className={clsx("flex-1 overflow-y-auto p-2 space-y-2 bg-slate-50/50 dark:bg-slate-900/50", !isListOpen && "hidden md:block")}>
                     {devices.map(d => {
-                        const isOnline = true; // Replace with logic
+                        const isOnline = true;
                         return (
                             <div
                                 key={d.id}
                                 onClick={() => handleSelectDevice(d)}
                                 className={clsx(
-                                    "p-3 rounded-lg cursor-pointer transition-colors border",
+                                    "p-3 rounded-xl cursor-pointer transition-all border shadow-sm relative",
                                     selectedId === d.id
-                                        ? "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800"
-                                        : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                                        ? "bg-white dark:bg-slate-800 border-indigo-500 ring-1 ring-indigo-500 z-10"
+                                        : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700"
                                 )}
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-3">
-                                        <div className={clsx(
-                                            "w-2 h-2 rounded-full",
-                                            isOnline ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500"
-                                        )}></div>
-                                        <span className="font-medium text-slate-900 dark:text-white">{d.name}</span>
+                                        <div className="relative">
+                                            <div className={clsx(
+                                                "w-3 h-3 rounded-full border-2 border-white dark:border-slate-800",
+                                                isOnline ? "bg-emerald-500" : "bg-red-500"
+                                            )}></div>
+                                            {isOnline && <div className="absolute inset-0 bg-emerald-500 rounded-full animate-ping opacity-75"></div>}
+                                        </div>
+                                        <div>
+                                            <span className="font-bold text-slate-900 dark:text-white text-sm block">{d.name || "Sin Nombre"}</span>
+                                            <span className="text-[10px] text-slate-500 font-mono">{d.device_id}</span>
+                                        </div>
                                     </div>
                                     <Clock size={14} className="text-slate-400" />
                                 </div>
-                                <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                                    <span className="flex items-center gap-1"><Wifi size={12} /> GPS</span>
-                                    <span className="flex items-center gap-1"><Battery size={12} /> 85%</span>
+
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded-md text-xs text-slate-600 dark:text-slate-300">
+                                        <Smartphone size={12} className="text-indigo-500" />
+                                        <span>{d.model || "Generico"}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded-md text-xs text-slate-600 dark:text-slate-300">
+                                        <Battery size={12} className="text-emerald-500" />
+                                        <span>85%</span>
+                                    </div>
                                 </div>
                             </div>
                         )
@@ -128,7 +167,7 @@ const Dashboard = () => {
             </div>
 
             {/* MAP AREA */}
-            <div className="flex-1 h-1/2 md:h-full relative bg-slate-100 dark:bg-slate-950">
+            <div className="flex-1 relative bg-slate-100 dark:bg-slate-950 transition-all duration-300">
                 <MapContainer center={[25.68, -100.31]} zoom={12} style={{ height: '100%', width: '100%' }} zoomControl={false}>
                     <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"

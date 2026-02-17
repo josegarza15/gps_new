@@ -1,16 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, FeatureGroup, Circle, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, FeatureGroup, Circle, Popup, useMap } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import api from '../services/api';
-import { Shield, Save, Trash2, Info } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
+import { Shield, Save, Trash2, Info, MapPin, Target, AlertTriangle, Layers } from 'lucide-react';
+import clsx from 'clsx';
+import StatusBadge from '../components/ui/StatusBadge';
+
+// Helper to center map
+const MapUpdater = ({ center }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (center) {
+            map.flyTo(center, 14, { animate: true, duration: 1.5 });
+        }
+    }, [center, map]);
+    return null;
+};
 
 const Zones = () => {
     const [devices, setDevices] = useState([]);
     const [selectedDevice, setSelectedDevice] = useState('');
     const [zones, setZones] = useState([]);
+    const [mapCenter, setMapCenter] = useState([25.68, -100.31]);
     const featureGroupRef = useRef();
 
     useEffect(() => {
@@ -31,6 +44,10 @@ const Zones = () => {
         try {
             const res = await api.get(`/zones/${selectedDevice}`);
             setZones(res.data);
+            if (res.data.length > 0) {
+                // Center on the first zone
+                setMapCenter([res.data[0].latitude, res.data[0].longitude]);
+            }
         } catch (error) {
             console.error("Error fetching zones", error);
         }
@@ -42,14 +59,14 @@ const Zones = () => {
             const { lat, lng } = layer.getLatLng();
             const radius = layer.getRadius();
 
-            const zoneName = prompt("Nombre de la Zona Segura:", "Nueva Zona");
+            const zoneName = prompt("ENTER SAFETY ZONE ID:", `ZONE-${Math.floor(Math.random() * 1000)}`);
             if (!zoneName) {
                 featureGroupRef.current.removeLayer(layer);
                 return;
             }
 
             const payload = {
-                name: zoneName,
+                name: zoneName.toUpperCase(),
                 latitude: lat,
                 longitude: lng,
                 radius: radius,
@@ -62,7 +79,7 @@ const Zones = () => {
                     featureGroupRef.current.removeLayer(layer);
                 })
                 .catch(err => {
-                    alert("Error guardando zona");
+                    alert("SYSTEM ERROR: ZONE CREATION FAILED");
                     console.error(err);
                     featureGroupRef.current.removeLayer(layer);
                 });
@@ -70,7 +87,7 @@ const Zones = () => {
     };
 
     const handleDelete = async (zoneId) => {
-        if (!confirm("¿Eliminar zona?")) return;
+        if (!confirm("CONFIRM ZONE DELETION?")) return;
         try {
             await api.delete(`/zones/${selectedDevice}/${zoneId}`);
             fetchZones();
@@ -80,40 +97,104 @@ const Zones = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 bg-slate-50 dark:bg-slate-900 overflow-hidden">
-            {/* HEADER */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Shield className="text-indigo-600" />
-                        Gestión de Zonas
-                    </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Crea geocercas para tus dispositivos</p>
-                </div>
+        <div className="flex h-full relative overflow-hidden bg-slate-950">
 
-                <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400 pl-2">Dispositivo:</span>
-                    <select
-                        value={selectedDevice}
-                        onChange={e => setSelectedDevice(e.target.value)}
-                        className="bg-slate-50 dark:bg-slate-700 border-none rounded-lg text-sm p-2 focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white outline-none min-w-[200px]"
-                    >
-                        {devices.map(d => (
-                            <option key={d.id} value={d.device_id}>{d.name || d.device_id}</option>
-                        ))}
-                    </select>
+            {/* FLOATING CONTROL PANEL */}
+            <div className="absolute top-4 left-4 bottom-4 w-80 md:w-96 z-[400] pointer-events-none flex flex-col">
+                <div className="flex-1 flex flex-col glass-panel-heavy rounded-2xl overflow-hidden border-slate-700/50 shadow-2xl pointer-events-auto">
+
+                    {/* Header */}
+                    <div className="p-4 border-b border-slate-800 bg-slate-900/50 shrink-0">
+                        <div className="flex items-center gap-3 mb-4">
+                            <Shield className="text-primary" />
+                            <div>
+                                <h1 className="font-mono font-bold text-white text-sm uppercase tracking-wider">Geo-Defense Perimeter</h1>
+                                <p className="text-[10px] text-slate-400 font-mono">ZONE MANAGEMENT SYSTEM</p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-mono text-slate-500 uppercase">Target Unit</label>
+                            <select
+                                value={selectedDevice}
+                                onChange={e => setSelectedDevice(e.target.value)}
+                                className="bg-slate-950 border border-slate-700 text-white text-xs rounded p-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none font-mono uppercase"
+                            >
+                                {devices.map(d => (
+                                    <option key={d.id} value={d.device_id}>{d.name || d.device_id}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Zone List */}
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar bg-slate-950/30">
+                        {zones.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-40 text-slate-600 opacity-50">
+                                <Target size={32} className="mb-2" />
+                                <span className="text-xs font-mono uppercase">No Active Zones</span>
+                            </div>
+                        ) : (
+                            zones.map(z => (
+                                <div key={z.id} className="bg-slate-900/40 border border-slate-800 p-3 rounded-lg hover:border-primary/30 transition-all group relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500/50"></div>
+                                    <div className="flex justify-between items-start mb-2 pl-2">
+                                        <div>
+                                            <h3 className="font-bold text-slate-200 text-sm font-mono tracking-tight">{z.name}</h3>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-[10px] text-slate-500 font-mono bg-slate-950/50 px-1.5 py-0.5 rounded border border-slate-800">
+                                                    RAD: {Math.round(z.radius)}m
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleDelete(z.id)}
+                                            className="text-slate-600 hover:text-destructive transition-colors p-1"
+                                            title="Delete Zone"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                    <button
+                                        onClick={() => setMapCenter([z.latitude, z.longitude])}
+                                        className="w-full mt-2 text-[10px] font-mono uppercase text-primary hover:text-white bg-primary/10 hover:bg-primary/20 py-1.5 rounded border border-primary/20 transition-all"
+                                    >
+                                        Locate Sector
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+
+                    {/* Instructions Footer */}
+                    <div className="p-3 bg-slate-900/80 border-t border-slate-800 text-[10px] font-mono text-slate-400">
+                        <div className="flex items-start gap-2">
+                            <Info size={14} className="text-primary mt-0.5" />
+                            <ul className="space-y-1">
+                                <li>1. SELECT "CIRCLE" TOOL ON MAP</li>
+                                <li>2. DRAG TO DEFINE PERIMETER</li>
+                                <li>3. ASSIGN ZONE IDENTIFIER</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* MAIN CONTENT */}
-            <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden relative">
-                <MapContainer center={[25.68, -100.31]} zoom={12} style={{ height: '100%', width: '100%' }}>
+            {/* MAP CONTAINER */}
+            <div className="absolute inset-0 z-0">
+                <MapContainer
+                    center={mapCenter}
+                    zoom={13}
+                    style={{ height: '100%', width: '100%' }}
+                    zoomControl={false}
+                    className="bg-slate-950"
+                >
                     <TileLayer
-                        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                        attribution='&copy; CARTODB'
-                        updateWhenZooming={false}
-                        keepBuffer={20}
+                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                        attribution='&copy; CARTO'
                     />
+
+                    <MapUpdater center={mapCenter} />
 
                     <FeatureGroup ref={featureGroupRef}>
                         <EditControl
@@ -129,9 +210,11 @@ const Zones = () => {
                                     metric: true,
                                     feet: false,
                                     shapeOptions: {
-                                        color: '#4f46e5',
-                                        fillColor: '#6366f1',
-                                        fillOpacity: 0.2
+                                        color: '#06b6d4', // Cyan
+                                        fillColor: '#06b6d4',
+                                        fillOpacity: 0.1,
+                                        weight: 2,
+                                        dashArray: '5, 10'
                                     }
                                 }
                             }}
@@ -144,38 +227,38 @@ const Zones = () => {
                             key={z.id}
                             center={[z.latitude, z.longitude]}
                             radius={z.radius}
-                            pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.2 }}
+                            pathOptions={{
+                                color: '#10b981', // Emerald
+                                fillColor: '#10b981',
+                                fillOpacity: 0.1,
+                                weight: 1,
+                                dashArray: '2, 5'
+                            }}
                         >
-                            <Popup className="custom-popup">
-                                <div className="p-2">
-                                    <strong className="block text-slate-900 mb-1">{z.name}</strong>
-                                    <span className="text-xs text-slate-500 block mb-2">Radio: {Math.round(z.radius)}m</span>
-                                    <button
-                                        onClick={() => handleDelete(z.id)}
-                                        className="flex items-center gap-1 text-red-600 hover:text-red-700 text-xs font-bold"
-                                    >
-                                        <Trash2 size={12} /> Eliminar
-                                    </button>
+                            <Popup className="custom-popup-tactical">
+                                <div className="p-2 min-w-[150px]">
+                                    <strong className="block text-primary font-mono mb-1 uppercase text-sm tracking-wider">{z.name}</strong>
+                                    <StatusBadge status="ACTIVE" className="scale-75 origin-left mb-2" />
+                                    <div className="text-xs text-slate-400 font-mono">
+                                        RADIUS: {Math.round(z.radius)}m
+                                    </div>
+                                    <div className="mt-2 pt-2 border-t border-slate-700/50 flex justify-end">
+                                        <button
+                                            onClick={() => handleDelete(z.id)}
+                                            className="text-[10px] text-destructive hover:text-white uppercase font-bold tracking-wider flex items-center gap-1"
+                                        >
+                                            <Trash2 size={10} /> Terminate
+                                        </button>
+                                    </div>
                                 </div>
                             </Popup>
                         </Circle>
                     ))}
                 </MapContainer>
-
-                <div className="absolute bottom-6 left-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur p-4 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 max-w-xs">
-                    <h4 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white mb-2 text-sm">
-                        <Info size={16} className="text-indigo-500" /> Instrucciones
-                    </h4>
-                    <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1 list-disc pl-4">
-                        <li>Selecciona el dispositivo arriba.</li>
-                        <li>Usa el icono ⭕ en el mapa.</li>
-                        <li>Arrastra para definir el radio.</li>
-                        <li>Suelta para guardar.</li>
-                    </ul>
-                </div>
             </div>
         </div>
     );
 };
 
 export default Zones;
+

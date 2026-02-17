@@ -4,39 +4,9 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-
-    --radius: 0.5rem;
-  }
-
-  .dark {
+    /* Tactical Palette - Default Dark Mode */
     --background: 222.2 84% 4.9%;
+    /* Deep Slate/Black */
     --foreground: 210 40% 98%;
 
     --card: 222.2 84% 4.9%;
@@ -45,24 +15,37 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Primary - Cyan 500 equivalent */
+    --primary: 189 94% 43%;
+    --primary-foreground: 0 0% 100%;
 
+    /* Secondary - Slate 800 */
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
 
+    /* Muted - Slate 800/900 */
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 217.2 32.6% 17.5%;
+    /* Accent - Cyan 900/20 (Glass effect base) */
+    --accent: 189 94% 43%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 62.8% 30.6%;
+    /* Semantic Colors */
+    --success: 142 76% 36%;
+    /* Emerald 600 */
+    --warning: 38 92% 50%;
+    /* Amber 500 */
+    --destructive: 0 84% 60%;
+    /* Red 500 */
     --destructive-foreground: 210 40% 98%;
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --ring: 189 94% 43%;
+
+    --radius: 0.25rem;
+    /* Sharper corners for tactical feel */
   }
 }
 
@@ -72,6 +55,121 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    /* Tactical Grid Background */
+    background-image:
+      linear-gradient(to right, rgba(30, 41, 59, 0.3) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(30, 41, 59, 0.3) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
+
+  /* Custom Scrollbar for Webkit */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-700 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-600;
+  }
+}
+
+@layer utilities {
+
+  /* Tactical Utilities */
+  .glass-panel {
+    @apply bg-slate-900/80 backdrop-blur-md border border-slate-700/50 shadow-xl;
+  }
+
+  .glass-panel-heavy {
+    @apply bg-black/90 backdrop-blur-xl border border-slate-800 shadow-2xl;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+  }
+
+  .box-glow {
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* --- LEAFLET TACTICAL OVERRIDES --- */
+
+  /* Dark Mode Toolbar */
+  .leaflet-bar {
+    @apply border-0 shadow-lg !important;
+  }
+
+  .leaflet-bar a {
+    @apply bg-slate-900 text-slate-300 border-slate-700 !important;
+  }
+
+  .leaflet-bar a:hover {
+    @apply bg-slate-800 text-white !important;
+  }
+
+  .leaflet-bar a.leaflet-disabled {
+    @apply bg-slate-950 text-slate-700 !important;
+  }
+
+  /* Draw Toolbar Icons Inversion/Adjustment if needed, 
+     often they are background images so we might just darken the container 
+     which we did above. */
+
+  /* Draw Actions (Save/Cancel) */
+  .leaflet-draw-actions {
+    @apply left-8 !important;
+  }
+
+  .leaflet-draw-actions a {
+    @apply bg-slate-900 border-slate-700 text-slate-300 !important;
+  }
+
+  .leaflet-draw-actions a:hover {
+    @apply bg-slate-800 text-primary !important;
+  }
+
+  /* Tooltips */
+  .leaflet-draw-tooltip {
+    @apply bg-slate-900 text-slate-300 border border-slate-700 !important;
+  }
+
+  .leaflet-draw-tooltip:before {
+    @apply border-r-slate-700 !important;
+  }
+
+  .leaflet-draw-guide-dash {
+    @apply border-primary !important;
+  }
+
+  .leaflet-edit-marker-selected {
+    @apply bg-primary/20 border-primary !important;
+  }
+
+  /* Custom Tactical Popup */
+  .custom-popup-tactical .leaflet-popup-content-wrapper {
+    @apply bg-slate-900/95 backdrop-blur-md border border-slate-700/50 shadow-2xl p-0 rounded-lg text-slate-200 !important;
+  }
+
+  .custom-popup-tactical .leaflet-popup-tip {
+    @apply bg-slate-900/95 border border-slate-700/50 !important;
+  }
+
+  .custom-popup-tactical .leaflet-popup-close-button {
+    @apply text-slate-400 hover:text-white !important;
+  }
+
+  /* Hide default close button if desired, or style it */
 }

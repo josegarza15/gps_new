@@ -142,6 +142,8 @@ const History = () => {
                     <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                         attribution='&copy; CARTODB'
+                        updateWhenZooming={false}
+                        keepBuffer={20}
                     />
 
                     {/* ROUTE LINE (Blue) */}

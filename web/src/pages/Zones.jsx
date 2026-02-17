@@ -111,6 +111,8 @@ const Zones = () => {
                     <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                         attribution='&copy; CARTODB'
+                        updateWhenZooming={false}
+                        keepBuffer={20}
                     />
 
                     <FeatureGroup ref={featureGroupRef}>

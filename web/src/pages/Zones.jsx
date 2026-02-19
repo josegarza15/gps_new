@@ -187,7 +187,7 @@ const Zones = () => {
                     zoom={13}
                     style={{ height: '100%', width: '100%' }}
                     zoomControl={false}
-                    className="bg-slate-950"
+                    className="bg-slate-950 map-tiles-bright"
                 >
                     <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"

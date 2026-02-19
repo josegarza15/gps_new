@@ -234,7 +234,7 @@ const Dashboard = () => {
                     zoom={13}
                     style={{ height: '100%', width: '100%' }}
                     zoomControl={false}
-                    className="bg-slate-950" // Dark background while loading
+                    className="bg-slate-950 map-tiles-bright" // Dark background while loading with bright tiles
                 >
                     {/* Dark Matter Tiles for Tactical Look */}
                     <TileLayer

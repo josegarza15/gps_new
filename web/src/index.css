@@ -172,4 +172,12 @@
   }
 
   /* Hide default close button if desired, or style it */
+  .leaflet-popup-close-button {
+    @apply text-slate-400 hover:text-white !important;
+  }
+
+  /* Brighter Map Tiles for History - Aggressive brightness for "Slate" look */
+  .map-tiles-bright .leaflet-tile-pane {
+    filter: brightness(3.0) contrast(0.8) saturate(0);
+  }
 }

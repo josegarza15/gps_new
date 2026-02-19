@@ -206,7 +206,7 @@ const History = () => {
 
             {/* MAP CONTAINER */}
             <div className="absolute inset-0 z-0">
-                <MapContainer center={[25.68, -100.31]} zoom={11} style={{ height: '100%', width: '100%' }} zoomControl={false} className="bg-slate-950">
+                <MapContainer center={[25.68, -100.31]} zoom={11} style={{ height: '100%', width: '100%' }} zoomControl={false} className="bg-slate-950 map-tiles-bright">
                     <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                         attribution='&copy; CARTO'
@@ -217,9 +217,9 @@ const History = () => {
                             {/* Full Route Line - Ghosted */}
                             <Polyline
                                 positions={route.map(p => [p.latitude, p.longitude])}
-                                color="#1e293b" // slate-800
+                                color="#94a3b8" // slate-400
                                 weight={4}
-                                opacity={0.5}
+                                opacity={0.6}
                                 dashArray="5, 10"
                             />
 

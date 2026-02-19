@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { setValue } from '../services/db';
 
 const COLORS = {
     primary: '#4A90E2',
@@ -30,7 +30,7 @@ const LoginScreen = ({ navigation }) => {
             });
 
             if (response.data.access_token) {
-                await SecureStore.setItemAsync('userToken', response.data.access_token);
+                setValue('userToken', response.data.access_token);
                 navigation.navigate('Home');
             } else {
                 Alert.alert('Error', 'Credenciales inválidas');

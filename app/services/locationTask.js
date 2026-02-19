@@ -1,8 +1,7 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
-import { saveLocation, getUnsyncedLocations, deleteLocations, initDB } from './db';
+import { saveLocation, getUnsyncedLocations, deleteLocations, initDB, getValue, setValue, deleteValue } from './db';
 import { getZones } from './geofenceStorage';
 
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -64,8 +63,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
                 const zones = await getZones(); // From local storage
                 let inSafeZone = false;
 
-                // Simple inline distance check (Haversine) if geo utils not available, but let's import it or use simple math
-                // We imported getDistance from utils if available, or lets define it here to be safe and self-contained tasks
+                // Simple inline distance check (Haversine)
                 const getDist = (lat1, lon1, lat2, lon2) => {
                     const R = 6371e3;
                     const φ1 = lat1 * Math.PI / 180;
@@ -98,28 +96,22 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
                 }
 
                 // --- Software Throttling Strategy (Robust for Android 12+) ---
-                // We DO NOT change the native tracking interval (it stays at 60s/Balanced).
-                // This prevents "ForegroundServiceStartNotAllowedException" and ensures we detect
-                // exiting the zone immediately (within 60s) instead of waiting 10 mins.
-
                 if (inSafeZone) {
-                    const lastSent = await SecureStore.getItemAsync('last_sent_timestamp');
+                    const lastSent = getValue('last_sent_timestamp');
                     const now = Date.now();
 
                     // If we sent a location less than 10 mins ago, SKIP sending now.
-                    // This saves Network Battery (Radio), which is the biggest consumer.
                     if (lastSent && (now - parseInt(lastSent)) < 600000) {
                         console.log("In Safe Zone - Skipping server upload (Software Throttling)");
                         return; // EXIT TASK without sending
                     }
 
                     // If > 10 mins, we proceed to send below and update timestamp
-                    await SecureStore.setItemAsync('last_sent_timestamp', now.toString());
+                    setValue('last_sent_timestamp', now.toString());
                     console.log("In Safe Zone - Heartbeat / Sending update");
                 } else {
                     // If OUT of safe zone, we always send immediately (60s interval).
-                    // We remove the timestamp so that if we enter a zone again, we start fresh.
-                    await SecureStore.deleteItemAsync('last_sent_timestamp');
+                    deleteValue('last_sent_timestamp');
                 }
                 // -----------------------------------------------------------
 
@@ -130,7 +122,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 
             // Try to send to server immediately
             try {
-                const deviceId = await SecureStore.getItemAsync('device_id');
+                const deviceId = getValue('device_id');
                 if (!deviceId) {
                     console.log("No device ID registered, saving locally.");
                     saveLocation(lat, lon, timestamp);
@@ -142,14 +134,15 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
                     longitude: lon,
                     timestamp: timestamp,
                     device_unique_id: deviceId
-                });
+                }, { timeout: 10000 }); // 10s timeout
+
                 console.log("Location sent to server");
 
                 // Sync old locations if any
                 syncOfflineLocations();
 
             } catch (err) {
-                console.log("Network error, saving locally", err.message);
+                console.log("Network error (or timeout), saving locally:", err.message);
                 saveLocation(lat, lon, timestamp);
             }
         }
@@ -161,7 +154,7 @@ const syncOfflineLocations = async () => {
         const locations = getUnsyncedLocations();
         if (locations.length === 0) return;
 
-        const deviceId = await SecureStore.getItemAsync('device_id');
+        const deviceId = getValue('device_id');
         if (!deviceId) return;
 
         console.log(`Syncing ${locations.length} offline locations...`);
@@ -175,7 +168,7 @@ const syncOfflineLocations = async () => {
                     longitude: loc.longitude,
                     timestamp: loc.timestamp,
                     device_unique_id: deviceId
-                });
+                }, { timeout: 10000 });
                 successfulIds.push(loc.id);
             } catch (e) {
                 console.error("Failed to sync one location", e.message);

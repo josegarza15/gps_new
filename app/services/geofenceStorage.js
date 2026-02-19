@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { getValue, setValue } from './db';
 
 const KEY_ZONES = 'safe_zones_v1';
 
@@ -6,7 +6,7 @@ const KEY_ZONES = 'safe_zones_v1';
 
 export const getZones = async () => {
     try {
-        const json = await SecureStore.getItemAsync(KEY_ZONES);
+        const json = getValue(KEY_ZONES);
         return json ? JSON.parse(json) : [];
     } catch (e) {
         console.error("Error reading zones", e);
@@ -27,7 +27,7 @@ export const addZone = async (zone) => {
         };
 
         zones.push(newZone);
-        await SecureStore.setItemAsync(KEY_ZONES, JSON.stringify(zones));
+        setValue(KEY_ZONES, JSON.stringify(zones));
         return true;
     } catch (e) {
         console.error("Error adding zone", e);
@@ -39,7 +39,7 @@ export const deleteZone = async (id) => {
     try {
         const zones = await getZones();
         const filtered = zones.filter(z => z.id !== id);
-        await SecureStore.setItemAsync(KEY_ZONES, JSON.stringify(filtered));
+        setValue(KEY_ZONES, JSON.stringify(filtered));
         return true;
     } catch (e) {
         console.error("Error deleting zone", e);
@@ -86,7 +86,7 @@ export const syncZonesWithServer = async (serverUrl, deviceId) => {
             radius: sz.radius
         }));
 
-        await SecureStore.setItemAsync(KEY_ZONES, JSON.stringify(mergedZones));
+        setValue(KEY_ZONES, JSON.stringify(mergedZones));
         return mergedZones;
 
     } catch (error) {

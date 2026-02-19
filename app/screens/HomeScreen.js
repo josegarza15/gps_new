@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView,
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { startLocationTracking, stopLocationTracking } from '../services/locationTask';
-import * as SecureStore from 'expo-secure-store';
+import { getValue, setValue, deleteValue } from '../services/db';
 import axios from 'axios';
 import { brand, modelName } from 'expo-device';
 import { Ionicons } from '@expo/vector-icons';
@@ -85,7 +85,7 @@ const HomeScreen = ({ navigation }) => {
 
             // 3. Auto-save logic
             if (loc) {
-                const deviceId = await SecureStore.getItemAsync('device_id');
+                const deviceId = getValue('device_id');
                 if (manual) {
                     await saveManualLocation(loc);
                 } else if (deviceId) {
@@ -104,7 +104,7 @@ const HomeScreen = ({ navigation }) => {
 
     const saveManualLocation = async (loc, silent = false) => {
         try {
-            const deviceId = await SecureStore.getItemAsync('device_id');
+            const deviceId = getValue('device_id');
             if (!deviceId) {
                 if (!silent) Alert.alert("Atención", "Dispositivo no registrado. La ubicación no se guardó.");
                 return;
@@ -126,7 +126,7 @@ const HomeScreen = ({ navigation }) => {
     }
 
     const checkRegistration = async () => {
-        const deviceId = await SecureStore.getItemAsync('device_id');
+        const deviceId = getValue('device_id');
         if (deviceId) {
             // Verify with backend if device actually exists
             try {
@@ -149,7 +149,7 @@ const HomeScreen = ({ navigation }) => {
                 // If network error, timeout, or 500, we KEEP the ID and assume we are registered (Offline Mode).
                 if (error.response && error.response.status === 404) {
                     console.log("Device not found on server (404), clearing local storage");
-                    await SecureStore.deleteItemAsync('device_id');
+                    deleteValue('device_id');
                     setIsRegistered(false);
                 } else {
                     console.log("Network/Server error during check, assuming offline registered state.", error.message);
@@ -179,7 +179,7 @@ const HomeScreen = ({ navigation }) => {
             });
 
             if (response.data.id) {
-                await SecureStore.setItemAsync('device_id', uniqueId);
+                setValue('device_id', uniqueId);
                 setIsRegistered(true);
                 Alert.alert('¡Bienvenido!', 'Dispositivo registrado correctamente.');
             }
@@ -242,7 +242,7 @@ const HomeScreen = ({ navigation }) => {
             setZones(updated);
 
             // --- Cloud Sync (Immediate) ---
-            const deviceId = await SecureStore.getItemAsync('device_id');
+            const deviceId = getValue('device_id');
             if (deviceId) {
                 console.log("Syncing new zone to cloud...");
                 syncZonesWithServer('https://gps-backend.techone.com.mx', deviceId).catch(err => console.log("Background sync failed", err));
@@ -258,7 +258,7 @@ const HomeScreen = ({ navigation }) => {
         setZones(updated);
 
         // --- Cloud Delete ---
-        const deviceId = await SecureStore.getItemAsync('device_id');
+        const deviceId = getValue('device_id');
         if (deviceId) {
             console.log(`Deleting zone ${id} from cloud...`);
             deleteZoneFromCloud('https://gps-backend.techone.com.mx', deviceId, id).catch(e => console.log("Cloud delete failed", e));
@@ -406,7 +406,7 @@ const HomeScreen = ({ navigation }) => {
                 <TouchableOpacity
                     style={styles.logoutButton}
                     onPress={async () => {
-                        await SecureStore.deleteItemAsync('userToken');
+                        deleteValue('userToken');
                         navigation.navigate('Login');
                     }}
                 >
